@@ -1,10 +1,8 @@
 # Beyond Lasso: A Survey of Nonconvex Regularization in Gaussian Graphical Models
 
-This repo contains R code to reproduce the simulations and analyses in Williams (2020).
+This repo contains R code to reproduce the simulations in Williams (2020).
 
 ## File Descriptions
-
-* Figure_1.R includes the code to make the penalty functions
 
 
 
