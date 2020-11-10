@@ -1,0 +1,457 @@
+---
+title: "empirical_sim"
+author: "Donny Williams"
+date: "11/10/2020"
+output: html_document
+---
+
+# Packages
+```{r}
+# use developmental version
+# install.packages("devtools")
+devtools::install_github("donaldRwilliams/GGMncv")
+# non reg
+library(mixggm)
+
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+
+# the datasets are in this package
+library(BGGM)
+```
+
+
+# PTSD data
+```{r}
+ptsd_pcors <- corpcor::cor2pcor(  cor(BGGM::ptsd) )
+ptsd_pcors <- ifelse(abs(ptsd_pcors) < 0.05, 0, ptsd_pcors)
+ptsd_cors <- corpcor::pcor2cor(ptsd_pcors)
+
+
+n <- c(250, 500, 1000, 2000, 4000, 8000)
+
+
+sim_func <- function(){
+print(1)
+ls <- list()
+for (i in 1:length(n)) {
+  
+  Y <- MASS::mvrnorm(n = n[i], mu = rep(0, 20), ptsd_cors)
+  
+  atan_1 <- GGMncv_search(cor(Y), 
+                          penalty = "atan",
+                          n = n[i],
+                          gamma = 0.01,
+                          select_lambda = TRUE, 
+                          select_gamma = FALSE)
+  
+  selo_1 <- GGMncv_search(cor(Y), 
+                          penalty = "selo",
+                          n = n[i],
+                          gamma = 0.01,
+                          select_lambda = TRUE, 
+                          select_gamma = FALSE)
+  
+  scad_37 <- GGMncv_search(cor(Y), 
+                           penalty = "scad",
+                           n = n[i],
+                           gamma = 3.7,
+                           select_lambda = TRUE, 
+                           select_gamma = FALSE)
+  
+  mcp_3 <- GGMncv_search(cor(Y), 
+                         penalty = "mcp",
+                         n = n[i],
+                         gamma = 2,
+                         select_lambda = TRUE, 
+                         select_gamma = FALSE)
+  
+  glasso <- GGMncv::GGMncv(cor(Y),
+                           n = n[i],
+                           penalty = "lasso",
+                           select = TRUE, 
+                           progress = FALSE)
+  
+  
+
+  nonreg <- mixggm::searchGGM(S = cor(Y),
+                           N = n[i], parallel = TRUE,
+                           model = "concentration")
+
+ 
+  results1_ptsd <- BDgraph::compare(
+    ifelse(ptsd_pcors == 0, 0, 1),
+    atan_1$adj,
+    selo_1$adj,
+    scad_37$adj,
+    mcp_3$adj,
+    main = c("true",
+             "atan_1",
+             "selo_1",
+             "scad_37",
+             "mcp_3")
+    )
+  
+ 
+ results2_ptsd <- BDgraph::compare(
+   ifelse(ptsd_pcors == 0, 0, 1),
+   glasso$adj,
+   nonreg$graph,
+   main = c("true",
+            "glasso",
+            "nonreg")
+ )
+ 
+ results_ptsd <- cbind.data.frame(results1_ptsd, results2_ptsd)
+ HD <- results_ptsd[3,] + results_ptsd[4,] 
+ 
+ results_ptsd <- rbind(  results_ptsd[6:7,], HD )
+ row.names(results_ptsd) <- c("spc", "sn", "hd")
+
+ suppressMessages(
+results_ptsd <-  reshape::melt(results_ptsd)
+)
+results_ptsd$measure <- c("spc", "sn", "hd")
+results_ptsd$dataset <- "ptsd"
+
+results <- results_ptsd
+results$n <- n[i]
+ls[[i]] <- results
+}
+
+returned_object <- do.call(rbind.data.frame, ls)
+returned_object
+}
+
+results_ptsd <- replicate(50, sim_func(), simplify = FALSE)
+results_ptsd <- do.call(rbind.data.frame, results_ptsd)
+```
+
+
+# BFI data
+```{r}
+bfi_pcors <- corpcor::cor2pcor(cor(na.omit( BGGM::bfi[,1:25])))
+bfi_pcors <- ifelse(abs(bfi_pcors) < 0.05, 0, bfi_pcors)
+bfi_cors <- corpcor::pcor2cor(bfi_pcors)
+
+
+n <- c(250, 500, 1000, 2000, 4000, 8000)
+
+sim_func <- function(){
+  print(1)
+  ls <- list()
+  for (i in 1:length(n)) {
+    
+    Y <- MASS::mvrnorm(n = n[i], mu = rep(0, 25), bfi_cors)
+    
+    atan_1 <- GGMncv_search(cor(Y), 
+                            penalty = "atan",
+                            n = n[i],
+                            gamma = 0.01,
+                            select_lambda = TRUE, 
+                            select_gamma = FALSE)
+    
+    selo_1 <- GGMncv_search(cor(Y), 
+                            penalty = "selo",
+                            n = n[i],
+                            gamma = 0.01,
+                            select_lambda = TRUE, 
+                            select_gamma = FALSE)
+    
+    scad_37 <- GGMncv_search(cor(Y), 
+                             penalty = "scad",
+                             n = n[i],
+                             gamma = 3.7,
+                             select_lambda = TRUE, 
+                             select_gamma = FALSE)
+    
+    mcp_3 <- GGMncv_search(cor(Y), 
+                           penalty = "mcp",
+                           n = n[i],
+                           gamma = 2,
+                           select_lambda = TRUE, 
+                           select_gamma = FALSE)
+    
+    glasso <- GGMncv::GGMncv(cor(Y),
+                             n = n[i],
+                             penalty = "lasso",
+                             select = TRUE, 
+                             progress = FALSE)
+    
+    nonreg <- mixggm::searchGGM(S = cor(Y),
+                                N = nrow(Y), parallel = TRUE,
+                                model = "concentration")
+    
+    
+    results1_ptsd <- BDgraph::compare(
+      ifelse(bfi_pcors == 0, 0, 1),
+      atan_1$adj,
+      selo_1$adj,
+      scad_37$adj,
+      mcp_3$adj,
+      main = c("true",
+               "atan_1",
+               "selo_1",
+               "scad_37",
+               "mcp_3")
+    )
+    
+    
+    results2_ptsd <- BDgraph::compare(
+      ifelse(bfi_pcors == 0, 0, 1),
+      glasso$adj,
+      nonreg$graph,
+      main = c("true",
+               "glasso",
+               "nonreg")
+    )
+    
+    results_ptsd <- cbind.data.frame(results1_ptsd, results2_ptsd)
+    HD <- results_ptsd[3,] + results_ptsd[4,] 
+    
+    results_ptsd <- rbind(  results_ptsd[6:7,], HD )
+    row.names(results_ptsd) <- c("spc", "sn", "hd")
+    
+    suppressMessages(
+      results_ptsd <-  reshape::melt(results_ptsd)
+    )
+    results_ptsd$measure <- c("spc", "sn", "hd")
+    results_ptsd$dataset <- "bfi"
+    
+    results <- results_ptsd
+    results$n <- n[i]
+    ls[[i]] <- results
+  }
+  
+  returned_object <- do.call(rbind.data.frame, ls)
+  returned_object
+}
+
+results_bfi <- replicate(50, sim_func(), simplify = FALSE)
+results_bfi <- do.call(rbind.data.frame, results_bfi)
+```
+
+
+# Plots 
+```{r}
+res_combined <- rbind.data.frame(results_ptsd, results_bfi)
+
+# Hamming distance
+hd_plot <- res_combined %>%
+  filter(variable != "true", measure == "hd") %>%
+  group_by(variable, measure, n, dataset)  %>%
+  summarise(mu = mean(value), scl = sd(value)) %>%
+  mutate(
+    measure = factor(measure,
+                     levels = "hd",
+                     labels = "Hamming Distance"),
+    dataset = factor(
+      dataset,
+      levels = c("bfi", "ptsd"),
+      labels =  c("BFI", "PTSD")
+    )
+  ) %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    color = variable,
+    group = variable
+  )) +
+  facet_grid(dataset ~ measure) +
+  geom_line() +
+  ylab("Score") +
+  guides(x =  guide_axis(angle = 90)) +
+  theme_bw() +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.text = element_text(size = 10),
+    legend.text = element_text(size = 10)
+  ) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c("ATAN",
+               "SELO",
+               "SCAD",
+               "MCP",
+               "glasso",
+               "Non-reg FS"),
+    breaks = c("atan_1",
+               "selo_1",
+               "scad_37",
+               "mcp_3",
+               "glasso",
+               "nonreg")
+  ) +
+  xlab("") +
+  ylab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_y_continuous(limits = c(0, 80)) +
+  scale_x_discrete(expand = c(0.01, 0.01))
+
+
+# specificity
+spc_plot <- res_combined %>%
+  filter(variable != "true", measure == "spc") %>%
+  group_by(variable, measure, n, dataset)  %>%
+  summarise(mu = mean(value), scl = sd(value)) %>%
+  mutate(
+    measure = factor(measure,
+                     levels = "spc",
+                     labels = "Specificity"),
+    dataset = factor(
+      dataset,
+      levels = c("bfi", "ptsd"),
+      labels =  c("BFI", "PTSD")
+    )
+  ) %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    color = variable,
+    group = variable
+  )) +
+  facet_grid(dataset ~ measure) +
+  geom_line() +
+  ylab("Score") +
+  guides(x =  guide_axis(angle = 90)) +
+  theme_bw() +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.text = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank(),
+    legend.title = element_blank()
+  ) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c("ATAN",
+               "SELO",
+               "SCAD",
+               "MCP",
+               "glasso",
+               "Non-reg FS"),
+    breaks = c("atan_1",
+               "selo_1",
+               "scad_37",
+               "mcp_3",
+               "glasso",
+               "nonreg")
+  ) +
+  xlab("") +
+  ylab("Score") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01))
+
+
+# sensitivity
+sn_plot <- res_combined %>%
+  filter(variable != "true", measure == "sn") %>%
+  group_by(variable, measure, n, dataset)  %>%
+  summarise(mu = mean(value), scl = sd(value)) %>%
+  mutate(
+    measure = factor(measure,
+                     levels = "sn",
+                     labels = "Sensitivity"),
+    dataset = factor(
+      dataset,
+      levels = c("bfi", "ptsd"),
+      labels =  c("BFI", "PTSD")
+    )
+  ) %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    color = variable,
+    group = variable
+  )) +
+  facet_grid(dataset ~ measure) +
+  geom_line() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme_bw() +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.text = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank(),
+  ) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c("ATAN",
+               "SELO",
+               "SCAD",
+               "MCP",
+               "glasso",
+               "Non-reg FS"),
+    breaks = c("atan_1",
+               "selo_1",
+               "scad_37",
+               "mcp_3",
+               "glasso",
+               "nonreg")
+  ) +
+  ylab("") +
+  xlab("Sample Size") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01))
+
+
+cowplot::plot_grid(
+  NULL,
+  cowplot::get_legend(spc_plot),
+  NULL,
+  cowplot::plot_grid(
+    spc_plot + theme(legend.position = "none"),
+    sn_plot + theme(legend.position = "none"),
+    hd_plot + theme(legend.position = "none"),
+    nrow = 1,
+    rel_widths = c(1, 1, 1.07)
+  ),
+  nrow = 4,
+  rel_heights = c(0.50, 1, 0.50, 10)
+)
+```
