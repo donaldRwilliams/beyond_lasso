@@ -136,7 +136,8 @@ GGMncv_search <- function(x,
                             progress = FALSE)
       
       fit$selected_lambda <- fit$fitted_models[[which.min( sapply(fit$fitted_models, "[[", "ic"))]]$lambda
-    } else {
+    
+      } else {
       
       stop("gamma can not be fixed. use instead the function GGMncv.")
     }
