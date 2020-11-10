@@ -1,0 +1,1344 @@
+---
+title: "tuning_select_sim"
+author: "Donny Williams"
+date: "11/10/2020"
+output: html_document
+---
+
+# Packages
+```{r}
+# use developmental version
+# install.packages("devtools")
+devtools::install_github("donaldRwilliams/GGMncv")
+# non reg
+library(mixggm)
+
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+
+# the datasets are in this package
+library(BGGM)
+```
+
+
+# Simulation 
+```{r}
+ptsd_pcors <- corpcor::cor2pcor(cor(BGGM::ptsd))
+ptsd_pcors <- ifelse(abs(ptsd_pcors) < 0.05, 0, ptsd_pcors)
+ptsd_cors <- corpcor::pcor2cor(ptsd_pcors)
+
+
+ls_i <- list()
+ls_j <- list()
+
+n <- c(250,
+       500,
+       1000,
+       2000,
+       4000,
+       8000)
+
+for (j in 1:50) {
+  print(j)
+  
+  for (i in 1:length(n)) {
+    Y <- MASS::mvrnorm(n = n[i], rep(0, 20), ptsd_cors)
+    
+    # atan
+    atan_all <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "atan",
+      select_gamma = TRUE,
+      select_lambda = TRUE
+    )
+    
+    atan_gamma <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "atan",
+      select_gamma = TRUE,
+      select_lambda = FALSE
+    )
+    
+    atan_lambda <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "atan",
+      gamma = 0.01,
+      select_lambda = TRUE,
+      select_gamma = FALSE
+    )
+    
+    # selo
+    selo_all <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "selo",
+      select_gamma = TRUE,
+      select_lambda = TRUE
+    )
+    
+    selo_gamma <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "selo",
+      gamma = 0.01,
+      select_gamma = TRUE,
+      select_lambda = FALSE
+    )
+    
+    
+    selo_lambda <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "selo",
+      gamma = 0.01,
+      select_gamma = FALSE,
+      select_lambda = TRUE
+    )
+    
+    # scad
+    scad_all <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "scad",
+      select_gamma = TRUE,
+      select_lambda = TRUE
+    )
+    
+    scad_gamma <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "scad",
+      select_gamma = TRUE,
+      select_lambda = FALSE
+    )
+    
+    scad_lambda <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "scad",
+      gamma = 3.7,
+      select_gamma = FALSE,
+      select_lambda = TRUE
+    )
+    
+    # mcp
+    mcp_all <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "mcp",
+      select_gamma = TRUE,
+      select_lambda = TRUE
+    )
+    
+    mcp_gamma <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "mcp",
+      select_gamma = TRUE,
+      select_lambda = FALSE
+    )
+    
+    mcp_lambda <- GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "mcp",
+      gamma = 2,
+      select_gamma = FALSE,
+      select_lambda = TRUE
+    )
+    
+    nonreg <- mixggm::searchGGM(S = cor(Y),
+                                N = n[i],
+                                model = "concentration")
+    
+    
+    lasso_lambda <-  GGMncv_search(
+      cor(Y),
+      n = n[i],
+      penalty = "lasso",
+      select_gamma = FALSE,
+      select_lambda = TRUE
+    )
+    
+    lasso_fixed <-  GGMncv::GGMncv(cor(Y),
+                                   n = n[i],
+                                   penalty = "lasso")
+    
+    
+    res_alt <-  BDgraph::compare(
+      ifelse(ptsd_pcors == 0, 0, 1),
+      nonreg$graph,
+      lasso_lambda$adj,
+      lasso_fixed$adj,
+      main = c("true",
+               "nonreg",
+               "lasso_lambda",
+               "lasso_fixed")
+    )
+    
+    res_atan <- BDgraph::compare(
+      ifelse(ptsd_pcors == 0, 0, 1),
+      atan_all$adj,
+      atan_gamma$adj,
+      atan_lambda$adj,
+      main = c("true",
+               "atan_all",
+               "atan_gamma",
+               "atan_lambda")
+    )
+    
+    res_selo <- BDgraph::compare(
+      ifelse(ptsd_pcors == 0, 0, 1),
+      selo_all$adj,
+      selo_gamma$adj,
+      selo_lambda$adj,
+      main = c("true",
+               "selo_all",
+               "selo_gamma",
+               "selo_lambda")
+    )
+    
+    res_scad <- BDgraph::compare(
+      ifelse(ptsd_pcors == 0, 0, 1),
+      scad_all$adj,
+      scad_gamma$adj,
+      scad_lambda$adj,
+      main = c("true",
+               "scad_all",
+               "scad_gamma",
+               "scad_lambda")
+    )
+    
+    
+    res_mcp <- BDgraph::compare(
+      ifelse(ptsd_pcors == 0, 0, 1),
+      mcp_all$adj,
+      mcp_gamma$adj,
+      mcp_lambda$adj,
+      main = c("true",
+               "mcp_all",
+               "mcp_gamma",
+               "mcp_lambda")
+    )
+    
+    results <- cbind.data.frame(res_alt,
+                                res_atan,
+                                res_selo,
+                                res_scad,
+                                res_mcp)
+    
+    HD <- results[3, ] + results[4, ]
+    
+    
+    results <- rbind(results[6:7,], HD)
+    row.names(results) <- c("spc", "sn", "hd")
+    
+    suppressMessages(results <-  reshape::melt(results))
+    results$measure <- c("spc", "sn", "hd")
+    results$dataset <- "ptsd"
+    
+    results$n <-  n[i]
+    
+    ls_i[[i]] <- results
+    
+  }
+  
+  ls_j[[j]] <- do.call(rbind.data.frame, ls_i)
+  
+}
+
+res <- do.call(rbind.data.frame, ls_j) 
+```
+
+
+# SELO Plots
+```{r}
+selo_hd <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "selo_all",
+        "selo_gamma",
+        "selo_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "hd"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("SELO", length(mu)),
+         measure = "Hamming Distance") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(SELO["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(SELO["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(SELO["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "selo_all",
+      "selo_gamma",
+      "selo_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top"
+  )
+
+
+
+selo_sn <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "selo_all",
+        "selo_gamma",
+        "selo_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "sn"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("SELO", length(mu)),
+         measure = "Sensitivity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(SELO["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(SELO["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(SELO["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "selo_all",
+      "selo_gamma",
+      "selo_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank()
+  )
+
+
+
+selo_spc <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "selo_all",
+        "selo_gamma",
+        "selo_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "spc"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("SELO", length(mu)),
+         measure = "Specificity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(SELO["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(SELO["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(SELO["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "selo_all",
+      "selo_gamma",
+      "selo_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("Score") +
+  xlab("") +
+  guides(color = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank(),
+    legend.title = element_blank()
+  )
+
+
+selo_plot <-
+  cowplot::plot_grid(
+    selo_spc + theme(legend.position = "none"),
+    selo_sn + theme(legend.position = "none"),
+    selo_hd + theme(legend.position = "none"),
+    nrow = 1
+  )
+
+```
+
+
+# ATAN Plots
+```{r}
+atan_hd <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "atan_all",
+        "atan_gamma",
+        "atan_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "hd"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("ATAN", length(mu)),
+         measure = "Hamming Distance") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(atan["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(atan["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(atan["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "atan_all",
+      "atan_gamma",
+      "atan_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top"
+  )
+
+
+
+atan_sn <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "atan_all",
+        "atan_gamma",
+        "atan_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "sn"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("ATAN", length(mu)),
+         measure = "Sensitivity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(atan["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(atan["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(atan["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "atan_all",
+      "atan_gamma",
+      "atan_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("Sample Size") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank()
+  )
+
+
+
+atan_spc <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "atan_all",
+        "atan_gamma",
+        "atan_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "spc"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("ATAN", length(mu)),
+         measure = "Specificity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(ATAN["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(ATAN["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(ATAN["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "atan_all",
+      "atan_gamma",
+      "atan_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("Score") +
+  xlab("") +
+  guides(color = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank(),
+    legend.title = element_blank()
+  )
+
+
+atan_plot <-
+  cowplot::plot_grid(
+    atan_spc + theme(legend.position = "none"),
+    atan_sn + theme(legend.position = "none"),
+    atan_hd + theme(legend.position = "none"),
+    nrow = 1
+  )
+```
+
+
+# SCAD Plots
+```{r}
+scad_hd <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "scad_all",
+        "scad_gamma",
+        "scad_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "hd"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("SCAD", length(mu)),
+         measure = "Hamming Distance") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(scad["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(scad["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(scad["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "scad_all",
+      "scad_gamma",
+      "scad_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top"
+  )
+
+
+
+scad_sn <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "scad_all",
+        "scad_gamma",
+        "scad_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "sn"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("SCAD", length(mu)),
+         measure = "Sensitivity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(scad["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(scad["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(scad["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "scad_all",
+      "scad_gamma",
+      "scad_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank()
+  )
+
+
+
+scad_spc <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "scad_all",
+        "scad_gamma",
+        "scad_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "spc"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("SCAD", length(mu)),
+         measure = "Specificity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(SCAD["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(SCAD["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(SCAD["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "scad_all",
+      "scad_gamma",
+      "scad_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("Score") +
+  xlab("") +
+  guides(color = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank(),
+    legend.title = element_blank()
+  )
+
+
+
+scad_plot <-
+  cowplot::plot_grid(
+    scad_spc + theme(legend.position = "none"),
+    scad_sn + theme(legend.position = "none"),
+    scad_hd + theme(legend.position = "none"),
+    nrow = 1
+  )
+```
+
+
+MCP Plots 
+```{r}
+mcp_hd <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "mcp_all",
+        "mcp_gamma",
+        "mcp_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "hd"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("MCP", length(mu)),
+         measure = "Hamming Distance") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(mcp["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(mcp["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(mcp["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "mcp_all",
+      "mcp_gamma",
+      "mcp_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top"
+  )
+
+
+
+mcp_sn <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "mcp_all",
+        "mcp_gamma",
+        "mcp_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "sn"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("MCP", length(mu)),
+         measure = "Sensitivity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(mcp["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(mcp["select" ~ gamma] ^ {
+        "fixed" ~ lambda
+      }),
+      expression(mcp["fixed" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "mcp_all",
+      "mcp_gamma",
+      "mcp_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  theme_bw() +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank()
+  )
+
+
+
+mcp_spc <- res %>%
+  filter(
+    variable != "true",
+    variable %in%
+      c(
+        "mcp_all",
+        "mcp_gamma",
+        "mcp_lambda",
+        "lasso_fixed",
+        "lasso_lambda",
+        "nonreg"
+      ),
+    measure == "spc"
+  ) %>%
+  group_by(variable, measure, n) %>%
+  summarise(mu = mean(value),
+            scl = sd(value)) %>%
+  mutate(model = rep("MCP", length(mu)),
+         measure = "Specificity") %>%
+  ggplot(aes(
+    x = as.factor(n),
+    y = mu,
+    group = variable,
+    color = variable
+  )) +
+  geom_line() +
+  facet_grid(model ~ measure) +
+  scale_color_manual(
+    name = "Model",
+    values = c(
+      "#CC79A7",
+      "#56B4E9",
+      "#009E73",
+      "#999999",
+      "#D55E00",
+      "#000000"
+    ),
+    labels = c(
+      expression(italic(p)("\U00B7")["select" ~ gamma] ^ {
+        "select" ~ lambda
+      }),
+      expression(italic(p)("\U00B7")["select" ~
+                                       gamma] ^ {
+                                         "fixed" ~ lambda
+                                       }),
+      expression(italic(p)("\U00B7")["fixed" ~
+                                       gamma] ^ {
+                                         "select" ~ lambda
+                                       }),
+      expression(glasso ^ {
+        "select" ~ lambda
+      }),
+      expression(glasso ^ {
+        "fixed" ~ lambda
+      }),
+      "Non-reg FS"
+      
+    ),
+    breaks = c(
+      "mcp_all",
+      "mcp_gamma",
+      "mcp_lambda",
+      "lasso_lambda",
+      "lasso_fixed",
+      "nonreg"
+    )
+  ) +
+  theme_bw() +
+  ylab("Score") +
+  xlab("") +
+  guides(color = guide_legend(nrow = 1)) +
+  scale_x_discrete(expand = c(0.01, 0.01)) +
+  guides(x =  guide_axis(angle = 90)) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank(),
+    legend.title = element_blank()
+  ) 
+
+
+mcp_plot <-
+  cowplot::plot_grid(
+    mcp_spc + theme(legend.position = "none"),
+    mcp_sn + theme(legend.position = "none"),
+    mcp_hd + theme(legend.position = "none"),
+    nrow = 1
+  )
+```
+
+
+# Combine Plots
+```{r}
+cowplot::plot_grid(
+  cowplot::get_legend(mcp_spc),
+  cowplot::plot_grid(
+    scad_plot,
+    mcp_plot + theme(legend.position = "none"),
+    selo_plot,
+    atan_plot,
+    nrow = 4
+  ),
+  nrow = 2,
+  rel_heights = c(1, 10)
+)
+```

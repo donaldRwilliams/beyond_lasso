@@ -1,6 +1,6 @@
 # Beyond Lasso: A Survey of Nonconvex Regularization in Gaussian Graphical Models
 
-This repo contains R code to reproduce the simulations in Williams (2020). 
+This repo contains R code to reproduce the simulations in Williams (2020).
 
 ## File Descriptions
 
@@ -13,6 +13,9 @@ This repo contains R code to reproduce the simulations in Williams (2020).
   * functions.R: This file includes the function GGMncv_search. This will be in the new version of **GGMncv**, 
     but for now this file is needed to reproduce the simulations.
 
+* tuning_select_sim.Rmd: This code will reproduce the simulations in the section titled "Tuning Parameter Selection."
+  * functions.R: This file includes the function GGMncv_search. This will be in the new version of **GGMncv**, 
+    but for now this file is needed to reproduce the simulations.
 
 
 Williams, D. R. (2020). Beyond Lasso: A Survey of Nonconvex Regularization in Gaussian Graphical Models. https://doi.org/10.31234/osf.io/ad57p
