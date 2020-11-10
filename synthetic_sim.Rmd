@@ -1,0 +1,260 @@
+---
+title: "synthetic_sim"
+author: "Donny Williams"
+date: "11/10/2020"
+output: html_document
+---
+
+```{r}
+# use developmental version
+# install.packages("devtools")
+devtools::install_github("donaldRwilliams/GGMncv")
+# non reg
+library(mixggm)
+
+library(ggplot2)
+library(cowplot)
+library(dbplyr)
+```
+
+
+```{r}
+conditions <- read.csv(file = "synthetic_conditions.csv")
+
+conds <- rbind.data.frame(conditions, conditions)
+
+conds$n <- c(rep(500, 20), rep(5000, 20))
+
+sim <- function() {
+  print(1)
+  dat_res_scad <- list()
+  dat_res_mcp  <- list()
+  dat_res_selo <- list()
+  dat_res_atan <- list()
+  dat_res_lasso <- list()
+  dat_res_nonreg <- list()
+  
+  for (i in 1:nrow(conds)) {
+    dat_i <- conds[i,]
+    main <- BDgraph::bdgraph.sim(
+      p = dat_i$p,
+      n = dat_i$n,
+      prob = dat_i$eta,
+      b = dat_i$df
+    )
+    diag(main$G) <- 1
+    K <- main$K * main$G
+    Y <-
+      MASS::mvrnorm(n = dat_i$n,
+                    mu = rep(0, dat_i$p),
+                    Sigma = cov2cor(solve(K)))
+    
+    # scad
+    fit <-      GGMncv_search(
+      cor(Y),
+      penalty = "scad",
+      n = dat_i$n,
+      gamma = 3.7,
+      select_lambda = TRUE,
+      select_gamma = FALSE
+    )
+    
+    scores <-  BDgraph::compare(main, fit$adj)[6:7, 2]
+    dat_res <- rbind.data.frame(dat_i[1,-1], dat_i[1,-1])
+    dat_res$measures <- c("spc", "sn")
+    dat_res$scores <- scores
+    dat_res$method <- "scad"
+    dat_res_scad[[i]] <- dat_res[,-1]
+    
+    # mcp
+    fit <-   GGMncv_search(
+      cor(Y),
+      penalty = "mcp",
+      n = dat_i$n,
+      gamma = 2,
+      select_lambda = TRUE,
+      select_gamma = FALSE
+    )
+    
+    
+    scores <-  BDgraph::compare(main, fit$adj)[6:7, 2]
+    dat_res <- rbind.data.frame(dat_i[1, -1], dat_i[1, -1])
+    dat_res$measures <- c("spc", "sn")
+    dat_res$scores <- scores
+    dat_res$method <- "mcp"
+    dat_res_mcp[[i]] <- dat_res[, -1]
+    
+    # selo
+    fit <-  GGMncv_search(
+      cor(Y),
+      penalty = "selo",
+      n = dat_i$n,
+      gamma = 0.01,
+      select_lambda = TRUE,
+      select_gamma = FALSE
+    )
+    
+    
+    scores <-  BDgraph::compare(main, fit$adj)[6:7, 2]
+    dat_res <- rbind.data.frame(dat_i[1, -1], dat_i[1, -1])
+    dat_res$measures <- c("spc", "sn")
+    dat_res$scores <- scores
+    dat_res$method <- "selo"
+    dat_res_selo[[i]] <- dat_res[, -1]
+    
+    
+    
+    # atan
+    fit <-  GGMncv_search(
+      cor(Y),
+      penalty = "atan",
+      n = dat_i$n,
+      gamma = 0.01,
+      select_lambda = TRUE,
+      select_gamma = FALSE
+    )
+    
+    
+    scores <-  BDgraph::compare(main, fit$adj)[6:7, 2]
+    dat_res <- rbind.data.frame(dat_i[1, -1], dat_i[1, -1])
+    dat_res$measures <- c("spc", "sn")
+    dat_res$scores <- scores
+    dat_res$method <- "atan"
+    dat_res_atan[[i]] <- dat_res[, -1]
+    
+    
+    
+    # lasso
+    fit <-  GGMncv_search(
+      cor(Y),
+      penalty = "lasso",
+      n = dat_i$n,
+      select_lambda = TRUE,
+      select_gamma = FALSE
+    )
+    
+    
+    
+    scores <-  BDgraph::compare(main, fit$adj)[6:7, 2]
+    dat_res <- rbind.data.frame(dat_i[1, -1], dat_i[1, -1])
+    dat_res$measures <- c("spc", "sn")
+    dat_res$scores <- scores
+    dat_res$method <- "lasso"
+    dat_res_lasso[[i]] <- dat_res[, -1]
+    
+    
+    # Non-reg FS
+    fit <- mixggm::searchGGM(S = cor(Y),
+                             N = nrow(Y),
+                             model = "concentration")
+    
+    
+    scores <-
+      BDgraph::compare(main, ifelse(fit$omega == 0, 0, 1))[6:7, 2]
+    dat_res <- rbind.data.frame(dat_i[1, -1], dat_i[1, -1])
+    dat_res$measures <- c("spc", "sn")
+    dat_res$scores <- scores
+    dat_res$method <- "nonreg"
+    dat_res_nonreg[[i]] <- dat_res[, -1]
+    
+  }
+  
+  results <- rbind(
+    do.call(rbind.data.frame, dat_res_scad),
+    do.call(rbind.data.frame,  dat_res_mcp),
+    do.call(rbind.data.frame,  dat_res_selo),
+    do.call(rbind.data.frame,  dat_res_atan),
+    do.call(rbind.data.frame,  dat_res_lasso),
+    do.call(rbind.data.frame, dat_res_nonreg)
+  )
+  
+  results
+  
+}
+
+results <-  replicate(2, sim(), simplify = FALSE)
+results <- do.call(rbind.data.frame, results)
+
+results %>%
+  filter(measures == "spc") %>%
+  group_by(eta, size, p, method, n) %>%
+  summarise(mu = mean(1 - scores), scl = sd(1 - scores)) %>%
+  mutate(method = factor(
+    method,
+    levels = c("scad",
+               "mcp",
+               "selo",
+               "atan",
+               "lasso",
+               "nonreg"),
+    labels  = c(
+      "SCAD",
+      "MCP",
+      "SELO",
+      "ATAN",
+      "glasso",
+      expression("Non-reg" ~ "FS")
+    )
+  )) %>%
+  
+  mutate(p =  factor(
+    x = p,
+    levels = c(10, 20),
+    labels = c(expression(italic(p) ~ "= 10"),
+               expression(italic(p) ~ "= 20"))
+  )) %>%
+  mutate(n =  factor(
+    x = n,
+    levels = c(500, 5000),
+    labels = c(expression(italic(n) ~ "= 500"),
+               expression(italic(n) ~ "= 5000"))
+  )) %>%
+  ggplot(aes(
+    x = as.factor(eta),
+    y =  mu,
+    fill = as.factor(size)
+  )) +
+  geom_bar(stat = "identity",
+           position = position_dodge(0.85),
+           width = .75) +
+  facet_grid(n + p ~ method, labeller = label_parsed) +
+  ylab("False Positive Rate") +
+  theme_bw() +
+  scale_y_continuous(expand = c(0, 0.005), limits = c(0, 0.70)) +
+  scale_x_discrete(label = c("90 %", "80 %", "70 %", "60 %", "50 %")) +
+  geom_errorbar(aes(ymax =  mu + scl, ymin =  pmax(mu - 0, 0)),
+                position = position_dodge(0.85),
+                width = 0) +
+  geom_errorbar(
+    aes(ymax =  mu + 0, ymin =  pmax(mu - scl, 0)),
+    position = position_dodge(0.85),
+    width = 0,
+    color = "white"
+  ) +
+  theme(
+    axis.title = element_text(size = 12),
+    title = element_text(size = 12),
+    strip.background = element_rect(fill = "gray95"),
+    legend.background = element_rect(color = "black"),
+    panel.grid = element_blank(),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    strip.text = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(
+      t = .5,
+      r = .5,
+      b = .1,
+      l = .5,
+      unit = "cm"
+    )
+  )  +
+  scale_fill_manual(
+    values = c("#009E73", "#E69F00"),
+    name = "Edge Size",
+    breaks = c("0.25", "0.39"),
+    labels = c("\U00B1 0.25", "\U00B1 0.40")
+  ) +
+  xlab("Sparsity") +
+  guides(x =  guide_axis(angle = 90))
+```
