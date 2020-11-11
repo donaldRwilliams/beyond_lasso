@@ -2,6 +2,14 @@
 
 This repo contains R code to reproduce the simulations in Williams (2020).
 
+Note that you will have to install the developmental version of **GGMncv**.
+The `ref` is a branch with the exact package used in the paper.
+
+```{r}
+# install.packages("devtools")
+devtools::install_github("donaldRwilliams/GGMncv", ref = "reproduce")
+```
+
 ## File Descriptions
 
 * synthetic_sim.Rmd: This code will reproduce the simulations in the section titled "Synthetic Partial Correlations."
